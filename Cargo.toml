@@ -1,0 +1,34 @@
+[package]
+name = "aauth"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+description = "Rust implementation of the AAuth protocol — authentication and authorization for autonomous agents, built on HTTP Message Signatures (RFC 9421) and JWT-based proof-of-possession tokens."
+license = "Apache-2.0"
+repository = "https://github.com/nolabs-ai/aauth-rs"
+keywords = ["aauth", "agents", "http-signatures", "rfc9421", "authorization"]
+categories = ["authentication", "web-programming"]
+
+[dependencies]
+base64 = "0.22"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+p256 = { version = "0.13", features = ["ecdsa"] }
+p384 = { version = "0.13", features = ["ecdsa"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+reqwest = { version = "0.12", optional = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
+
+[features]
+default = []
+# Enables the built-in blocking HTTP client (JWKS discovery, metadata
+# fetching, token exchange, polling) backed by reqwest.
+reqwest-client = ["dep:reqwest"]
+
+[dev-dependencies]
+base64 = "0.22"
