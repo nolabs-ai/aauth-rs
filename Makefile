@@ -4,7 +4,7 @@
 # GitHub Actions PR workflow runs.
 
 CARGO ?= cargo
-MSRV  ?= 1.82
+MSRV  ?= 1.86
 
 .DEFAULT_GOAL := help
 
@@ -33,6 +33,10 @@ fmt-check: ## Check formatting without modifying files
 clippy: ## Lint with clippy, warnings as errors
 	$(CARGO) clippy --all-targets --all-features -- -D warnings
 
+.PHONY: examples
+examples: ## Compile (and thus check) the README examples in examples/
+	$(CARGO) build --examples --all-features
+
 .PHONY: doc
 doc: ## Build docs, warnings as errors
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --no-deps --all-features
@@ -47,7 +51,7 @@ msrv: ## Verify the crate builds on the declared MSRV (needs rustup + toolchain 
 	$(CARGO) +$(MSRV) check --all-features
 
 .PHONY: ci
-ci: fmt-check clippy test doc ## Run the full PR gate locally
+ci: fmt-check clippy test examples doc ## Run the full PR gate locally
 
 .PHONY: clean
 clean: ## Remove build artifacts

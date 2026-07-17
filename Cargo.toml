@@ -2,7 +2,7 @@
 name = "aauth"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.82"
+rust-version = "1.86"
 description = "Rust implementation of the AAuth protocol — authentication and authorization for autonomous agents, built on HTTP Message Signatures (RFC 9421) and JWT-based proof-of-possession tokens."
 license = "Apache-2.0"
 repository = "https://github.com/nolabs-ai/aauth-rs"
@@ -32,3 +32,9 @@ reqwest-client = ["dep:reqwest"]
 
 [dev-dependencies]
 base64 = "0.22"
+
+# This example uses the built-in reqwest client, so it only builds when that
+# feature is enabled (`cargo build --examples` skips it otherwise).
+[[example]]
+name = "exchange_resource_token"
+required-features = ["reqwest-client"]

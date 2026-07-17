@@ -52,6 +52,8 @@ jobs:
       # feature-gated regression can't hide behind the other.
       - run: cargo test --no-default-features
       - run: cargo test --all-features
+      # Compile the README examples (examples/) so they can't rot.
+      - run: cargo build --examples --all-features
 
   docs:
     name: doc
@@ -64,11 +66,14 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
 
+  # MSRV floor is dictated by the url -> idna -> icu_* dependency chain, not
+  # by this crate's own code. If a dependency bump raises it, update
+  # `rust-version` in Cargo.toml and the toolchain below together.
   msrv:
-    name: msrv (1.82)
+    name: msrv (1.86)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.82.0
+      - uses: dtolnay/rust-toolchain@1.86.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --all-features

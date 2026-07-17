@@ -35,6 +35,11 @@ aauth = { version = "0.1", features = ["reqwest-client"] }
 
 ## Quick start
 
+Each snippet below has a complete, runnable counterpart under
+[`examples/`](examples) — run one with `cargo run --example <name>` (e.g.
+`sign_request`, `verify_request`, `challenge`, `tokens`,
+`exchange_resource_token`), or compile them all with `make examples`.
+
 ### Sign a request (agent)
 
 ```rust
@@ -246,6 +251,8 @@ and the `x509` Signature-Key scheme.
 ```bash
 cargo test --all-features         # unit + integration + security tests
 cargo clippy --all-features --all-targets
+cargo build --examples --all-features   # compile-check the README examples
+make ci                           # the full PR gate (fmt, clippy, test, examples, doc)
 ```
 
 ## License
