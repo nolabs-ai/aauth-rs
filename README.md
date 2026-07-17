@@ -153,11 +153,13 @@ let auth_token = exchange_resource_token(
     &agent_jwt,                    // aa-agent+jwt for the Signature-Key header
     &ExchangeOptions {
         // Required: pin your own PS and identity. The resource token is
-        // verified (agent == you, aud == your PS, agent_jkt == your key,
-        // exp valid) BEFORE anything is sent, so a malicious resource can't
+        // verified (iss == the resource you called, agent == you, agent_jkt
+        // == your key, exp valid) BEFORE anything is sent, and the request
+        // only ever goes to your pinned PS — so a malicious resource can't
         // redirect the exchange to an attacker-controlled server.
         expected_ps: Some("https://ps.example"),
         expected_agent: Some("aauth:alice@agents.example"),
+        expected_resource_iss: Some("https://resource.example"),
         on_interaction: Some(&|url, code| {
             println!("Please visit {url} and enter code {code}");
         }),
@@ -213,38 +215,54 @@ Protocol-level verification is strict and fails closed:
 
 - **Auth-token audience binding.** A resource fully validates an auth token's
   claims (`typ`, signature via JWKS discovery, `aud` == this resource,
-  `agent`) — not just the HTTP signature — so a token minted for a different
-  resource is rejected (spec §9.4.3.2).
-- **Replay defense.** The RFC 9421 `created` parameter is **required**; a
-  signature without it does not verify (spec §12.7.4).
-- **SSRF admission (`aauth::egress`).** Before any issuer-metadata or
-  `jwks_uri` fetch (verifier / `JwksFetcher`) or PS token-endpoint dial
-  (agent exchange), the target is checked against an `EgressPolicy`. The
-  default `StandardEgressPolicy::default_deny()` requires HTTPS and blocks
-  loopback / RFC 1918 / link-local / unique-local literal IPs and
-  `localhost`. Use `StandardEgressPolicy::allow_localhost()` for local
-  development. Untrusted `iss` values are also required to be well-formed
-  HTTPS server identifiers before they drive discovery.
+  `agent`, `act`, and that `sub`/`scope` is present) — not just the HTTP
+  signature — so a token minted for a different resource is rejected at the
+  `aud` step (spec §9.4.3).
+- **Request freshness.** The RFC 9421 `created` parameter is **required**; a
+  signature without it does not verify (spec §12.7.4). This is a bounded
+  freshness window (default 60s), not full anti-replay — the profile defines
+  no per-request nonce, so replay protection within the window rests on token
+  `jti`, not the message signature.
+- **SSRF admission (`aauth::egress`) — hardening beyond the spec.** The draft
+  has no egress section, but before any issuer-metadata or `jwks_uri` fetch
+  (verifier / `JwksFetcher`) or PS token-endpoint dial (agent exchange), the
+  target is checked against an `EgressPolicy`. The default
+  `StandardEgressPolicy::default_deny()` requires HTTPS and blocks loopback /
+  RFC 1918 / link-local / unique-local literal IPs and `localhost`. Use
+  `StandardEgressPolicy::allow_localhost()` for local development. Untrusted
+  `iss` values must also be well-formed HTTPS server identifiers before they
+  drive discovery (this part maps to §12.9.1).
   *Limitation:* the default policy does not resolve DNS, so a public hostname
   that resolves to an internal address is admitted — DNS-rebinding defense
   requires a custom `EgressPolicy` or a connection-level control.
 - **Key-discovery integrity.** `JwksFetcher` verifies the discovered metadata
   document's `issuer` equals the identifier it was fetched from before
-  trusting its `jwks_uri` (spec §12.10).
+  trusting its `jwks_uri`. The spec mandates this for the PS and AS documents
+  (§12.10.2 / §12.10.3); it is applied uniformly to all four document types
+  here (stricter for the agent/resource docs).
 - **Resource-token verification before exchange.** The agent verifies the
-  resource token (agent == self, `aud` == the caller-pinned PS, `agent_jkt`
-  == its own key, `exp`) before sending it, and refuses to contact a PS it
-  did not pin.
-- **Interaction codes.** Crockford base32, drawn with a uniform (bias-free)
-  5-bit extraction from a CSPRNG, with an 8-symbol (≥ 40-bit) floor
-  (spec §12.3.3.1).
-- **Token lifetimes.** Clamped on issue and rejected on verify above the spec
-  ceilings (auth ≤ 1h, agent ≤ 24h).
+  resource token before sending it (spec §6.6.3): `iss` matches the resource
+  it contacted (confused-deputy defense, when `expected_resource_iss` is
+  supplied), `agent` == self, `agent_jkt` == its own key, and `exp` is valid.
+  The exchange is always sent to the caller-pinned PS and never to a server
+  named by the resource token. The token's `aud` is **not** pinned to the PS:
+  it is the PS in three-party mode and the AS in four-party mode, and the PS
+  routes on it.
+- **Interaction codes — hardening beyond the spec.** §12.3.3 defines `code`
+  as a single-use linking string with no mandated encoding or entropy floor.
+  This crate uses Crockford base32, drawn with a uniform (bias-free) 5-bit
+  extraction from a CSPRNG, with an 8-symbol (≥ 40-bit) floor.
+- **Token lifetimes.** Auth tokens are clamped on issue and rejected on verify
+  above the 1h ceiling (spec §9.4.1, a **MUST NOT**). Agent tokens are held to
+  24h (spec §5.2.2 is a **SHOULD NOT**, so this is stricter than required, and
+  can reject a discouraged-but-conformant token). Resource tokens default to
+  the recommended ≤ 5 min (§6.6.1). Not enforced: §7.7's rule that an auth
+  token's `exp` must not exceed the agent token it derives from — see gaps.
 
 Known coverage gaps (not implemented): missions (§8), AS federation /
-`upstream_token` (§9.4.5), sub-agent enforcement (§10.2), the PS
-permission/audit/interaction endpoints, re-authorization, third-party login,
-and the `x509` Signature-Key scheme.
+`upstream_token` (§9.4.5), the §7.7 auth-token / agent-token lifetime binding,
+sub-agent enforcement (§10.2), the PS permission/audit/interaction endpoints,
+re-authorization, third-party login, and the `x509` Signature-Key scheme.
 
 ## Development
 

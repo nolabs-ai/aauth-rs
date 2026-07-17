@@ -15,20 +15,24 @@ pub fn generate_pending_id() -> String {
 }
 
 /// Minimum interaction-code length in symbols (5 bits each → ≥ 40 bits of
-/// entropy, per spec §12.3.3.1).
+/// entropy). This floor is a hardening choice by this crate; the spec
+/// (§12.3.3) defines `code` as a single-use linking string but mandates no
+/// encoding or entropy minimum.
 pub const MIN_INTERACTION_CODE_SYMBOLS: usize = 8;
 
-/// Crockford base32 alphabet (spec §12.3.3.1): digits then A–Z with the
-/// ambiguous glyphs I, L, O, U removed, so codes survive human transcription
-/// and case-folding for out-of-band comparison.
+/// Crockford base32 alphabet: digits then A–Z with the ambiguous glyphs
+/// I, L, O, U removed, so codes survive human transcription and case-folding
+/// for out-of-band comparison. Also a crate choice — §12.3.3 gives only
+/// illustrative examples, not an alphabet.
 const CROCKFORD: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-/// Generate an interaction code per spec §12.3.3.1.
+/// Generate a single-use interaction code (spec §12.3.3).
 ///
-/// Uses the Crockford base32 alphabet and extracts a clean 5 bits per symbol
-/// from a cryptographically secure RNG, so the distribution is uniform (no
-/// modulo bias). `length` is raised to [`MIN_INTERACTION_CODE_SYMBOLS`] if
-/// smaller, guaranteeing at least 40 bits of entropy.
+/// Encoding and entropy are hardening choices (see
+/// [`MIN_INTERACTION_CODE_SYMBOLS`]): the Crockford base32 alphabet is used,
+/// a clean 5 bits per symbol is drawn from a cryptographically secure RNG so
+/// the distribution is uniform (no modulo bias), and `length` is raised to
+/// [`MIN_INTERACTION_CODE_SYMBOLS`] if smaller.
 pub fn generate_interaction_code(length: usize) -> String {
     use rand_core::RngCore as _;
 

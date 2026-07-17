@@ -40,7 +40,7 @@ pub struct RequestVerifier<'a> {
     pub canonical_authorities: Vec<String>,
     /// This resource's own identifier (HTTPS URL). REQUIRED to validate auth
     /// tokens: it is the expected `aud`, without which a token minted for a
-    /// different resource would be accepted (spec §9.4.3.2).
+    /// different resource would be accepted (spec §9.4.3).
     pub resource_id: Option<String>,
     /// Resolver for `jwks_uri` / `jwt` scheme key discovery.
     pub jwks_resolver: Option<&'a dyn JwksResolver>,
@@ -150,7 +150,7 @@ impl<'a> RequestVerifier<'a> {
                 // above already bound cnf.jwk to the signing key; here we
                 // MUST also validate the token's own claims (typ, iss, aud,
                 // agent) rather than trusting them unverified — otherwise a
-                // token minted for another resource is accepted (§9.4.3.2).
+                // token minted for another resource is accepted (§9.4.3).
                 let Some(jwt_token) = parsed_key.param("jwt") else {
                     return VerificationResult::failure("jwt scheme missing token");
                 };

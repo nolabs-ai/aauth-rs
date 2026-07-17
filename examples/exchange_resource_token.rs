@@ -47,11 +47,13 @@ fn main() -> aauth::Result<()> {
         &agent_jwt,
         &ExchangeOptions {
             // Required: pin your own PS and identity. The resource token is
-            // verified (agent == you, aud == your PS, agent_jkt == your key,
-            // exp valid) BEFORE anything is sent, so a malicious resource
-            // cannot redirect the exchange to an attacker-controlled server.
+            // verified (iss == the resource you called, agent == you,
+            // agent_jkt == your key, exp valid) BEFORE anything is sent, and
+            // the request only ever goes to your pinned PS — so a malicious
+            // resource cannot redirect it to an attacker-controlled server.
             expected_ps: Some("https://ps.example"),
             expected_agent: Some("aauth:alice@agents.example"),
+            expected_resource_iss: Some("https://resource.example"),
             on_interaction: Some(&|url, code| {
                 println!("Please visit {url} and enter code {code}");
             }),

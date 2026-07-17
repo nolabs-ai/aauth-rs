@@ -156,10 +156,11 @@ pub fn verify_token(
 
     let now = now_unix();
 
-    // Step 3: check exp. For auth tokens `exp` is REQUIRED (spec §9.4.1 /
-    // §9.4.3.1); an absent claim is a rejection, not a skip, otherwise a
-    // token with no `exp` would never expire. For other token types keep the
-    // lenient "validate when present" behaviour.
+    // Step 3: check exp. For auth tokens `exp` is REQUIRED (spec §9.4.1
+    // bounds it at ≤ 1h; §9.4.3 verification checks it); an absent claim is a
+    // rejection, not a skip, otherwise a token with no `exp` would never
+    // expire. For other token types keep the lenient "validate when present"
+    // behaviour.
     match parsed.claim_i64("exp") {
         Some(exp) if now >= exp => return Err(token_err("Token has expired".into())),
         Some(_) => {}

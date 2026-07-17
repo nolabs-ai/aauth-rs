@@ -59,6 +59,10 @@ pub fn create_resource_token(
 /// Expectations for [`verify_resource_token`].
 #[derive(Debug, Clone, Default)]
 pub struct VerifyResourceTokenOptions<'a> {
+    /// Expected issuer — the identifier of the resource the token came from.
+    /// Verifying it defends against a confused-deputy where one resource
+    /// hands out a token issued by another (spec §6.6.3 step 3).
+    pub expected_iss: Option<&'a str>,
     /// Expected audience (the recipient's own identifier — PS or AS).
     pub expected_aud: Option<&'a str>,
     /// Expected agent identifier.
@@ -109,6 +113,17 @@ pub fn verify_resource_token(
     if let Some(iat) = parsed.claim_i64("iat") {
         if iat > now + 60 {
             return Err(token_err("Resource token iat is in the future"));
+        }
+    }
+
+    // Step 3b: verify iss matches the resource actually contacted
+    // (spec §6.6.3 step 3 — confused-deputy defense).
+    if let Some(expected_iss) = options.expected_iss {
+        if parsed.claim_str("iss") != Some(expected_iss) {
+            return Err(token_err(format!(
+                "Invalid issuer: expected {expected_iss}, got {:?}",
+                parsed.claim_str("iss")
+            )));
         }
     }
 

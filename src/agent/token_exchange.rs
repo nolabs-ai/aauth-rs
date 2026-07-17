@@ -28,22 +28,28 @@ pub fn extract_resource_token(headers: &HashMap<String, String>) -> Option<Strin
 
 /// Options for [`exchange_resource_token`].
 ///
-/// `expected_ps` and `expected_agent` are REQUIRED: without pinning the PS a
-/// malicious resource could set the resource token's `aud` to an
-/// attacker-controlled server and the agent would send an agent-token-signed
-/// request there (spec §6.7.3).
+/// `expected_ps` and `expected_agent` are REQUIRED: the exchange is always
+/// sent to the caller-pinned PS, never to a server chosen by the (untrusted)
+/// resource token, so a malicious resource cannot redirect the
+/// agent-token-signed request elsewhere (spec §6.6.3).
 #[derive(Default)]
 pub struct ExchangeOptions<'a> {
-    /// The agent's own known person server (HTTPS identifier). The resource
-    /// token's `aud` MUST match this, and it is where the exchange is sent.
-    /// REQUIRED.
+    /// The agent's own known person server (HTTPS identifier). This is where
+    /// the exchange is sent — regardless of the resource token's `aud`, which
+    /// is the PS in three-party mode and the AS in four-party mode; the PS
+    /// routes on `aud`. REQUIRED.
     pub expected_ps: Option<&'a str>,
     /// The agent's own identifier. The resource token's `agent` MUST match.
     /// REQUIRED.
     pub expected_agent: Option<&'a str>,
+    /// Identifier of the resource the agent actually contacted. When set, the
+    /// resource token's `iss` MUST match it — the confused-deputy defense of
+    /// spec §6.6.3 step 3. Strongly recommended; if omitted, that check is
+    /// skipped.
+    pub expected_resource_iss: Option<&'a str>,
     /// Resolver for the resource's JWKS. When set, the resource token's
-    /// signature is fully verified (spec §6.7.3); when absent, only its
-    /// claims (exp, agent, aud, agent_jkt) are checked.
+    /// signature is fully verified (spec §6.6.3); when absent, only its
+    /// claims (iss, exp, agent, agent_jkt) are checked.
     pub resource_jwks_resolver: Option<&'a dyn crate::keys::JwksResolver>,
     /// Egress policy for the PS token endpoint and pending URLs. Defaults to
     /// [`crate::egress::StandardEgressPolicy::default_deny`].
@@ -85,12 +91,17 @@ fn signed_headers_for(
     Ok(headers)
 }
 
-/// Exchange a `resource_token` for an `auth_token` via the PS (SPEC §4.1.3).
+/// Exchange a `resource_token` for an `auth_token` via the PS (spec §4.1.3).
 ///
-/// Three-party token exchange flow:
-/// 1. Decode the resource token to get the PS URL from its `aud` claim.
-/// 2. Discover the PS `token_endpoint` via `/.well-known/aauth-person.json`
-///    (falls back to `{aud}/token` if the metadata fetch fails).
+/// Works for both three-party (PS is the token `aud`) and four-party (AS is
+/// the `aud`, PS forwards) modes: the request is always sent to the
+/// caller-pinned `expected_ps`, and the PS routes on the token's `aud`.
+///
+/// 1. Verify the resource token before use (spec §6.6.3): `iss` matches the
+///    resource contacted (when `expected_resource_iss` is set), `agent` is
+///    this agent, `agent_jkt` is this agent's key, and `exp` is valid.
+/// 2. Discover the pinned PS's `token_endpoint` via
+///    `/.well-known/aauth-person.json` (falls back to `{ps}/token`).
 /// 3. POST `{"resource_token": ...}` to the PS, signed with the agent token.
 /// 4. On 200, return the `auth_token`; on 202, poll the Location URL until a
 ///    terminal response (honouring interaction / clarification callbacks).
@@ -106,7 +117,7 @@ pub fn exchange_resource_token(
     let egress: &dyn EgressPolicy = options.egress.unwrap_or(&default_egress);
 
     // The PS must be pinned by the caller — never derived solely from the
-    // (attacker-influenceable) resource token (spec §6.7.3).
+    // (attacker-influenceable) resource token (spec §6.6.3).
     let expected_ps = options.expected_ps.ok_or_else(|| {
         token_err("expected_ps is required: refusing to send to a PS chosen by the resource".into())
     })?;
@@ -114,14 +125,19 @@ pub fn exchange_resource_token(
         token_err("expected_agent is required to verify the resource token".into())
     })?;
 
-    // Step 1: verify the resource token before using it (spec §6.7.3):
-    // agent == self, aud == our pinned PS, agent_jkt == our key, exp valid.
+    // Step 1: verify the resource token before using it (spec §6.6.3):
+    // iss == the resource we contacted (confused-deputy defense), agent ==
+    // self, agent_jkt == our key, exp valid. The token's `aud` is NOT pinned
+    // to the PS here — it is the PS in three-party mode and the AS in
+    // four-party mode; the PS validates/routes on it. Safety comes from only
+    // ever sending to the caller-pinned PS below.
     let agent_jkt = crate::keys::calculate_jwk_thumbprint(&crate::keys::public_key_to_jwk(
         &private_key.public_key(),
         None,
     ))?;
     let verify_opts = crate::tokens::VerifyResourceTokenOptions {
-        expected_aud: Some(expected_ps),
+        expected_iss: options.expected_resource_iss,
+        expected_aud: None,
         expected_agent: Some(expected_agent),
         expected_agent_jkt: Some(&agent_jkt),
     };
@@ -139,16 +155,18 @@ pub fn exchange_resource_token(
                 )
             })?;
             let claim = |name: &str| parsed.claim_str(name);
+            if let Some(expected_iss) = options.expected_resource_iss {
+                if claim("iss") != Some(expected_iss) {
+                    return Err(token_err(format!(
+                        "resource_token iss {:?} does not match the contacted resource {expected_iss:?}",
+                        claim("iss")
+                    )));
+                }
+            }
             if claim("agent") != Some(expected_agent) {
                 return Err(token_err(format!(
                     "resource_token agent {:?} does not match this agent {expected_agent:?}",
                     claim("agent")
-                )));
-            }
-            if claim("aud") != Some(expected_ps) {
-                return Err(token_err(format!(
-                    "resource_token aud {:?} does not match the pinned PS {expected_ps:?}",
-                    claim("aud")
                 )));
             }
             if claim("agent_jkt") != Some(agent_jkt.as_str()) {

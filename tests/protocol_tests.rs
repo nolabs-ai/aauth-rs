@@ -237,6 +237,7 @@ fn resource_token_round_trip() {
             expected_aud: Some("https://as.example"),
             expected_agent: Some("aauth:alice@agents.example"),
             expected_agent_jkt: Some(&agent_jkt),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -828,15 +829,14 @@ impl HttpClient for MockPsClient {
     }
 }
 
-fn make_resource_token_for_ps() -> (String, PrivateKey, String) {
-    // Resource token audience points at the PS
+fn make_resource_token(aud: &str) -> (String, PrivateKey, String) {
     let (resource_key, _) = generate_ed25519_keypair();
     let (agent_key, agent_public) = generate_ed25519_keypair();
     let agent_jkt = calculate_jwk_thumbprint(&public_key_to_jwk(&agent_public, None)).unwrap();
     let resource_token = create_resource_token(
         &ResourceTokenClaims {
             iss: "https://resource.example".into(),
-            aud: "https://ps.example".into(),
+            aud: aud.into(),
             agent: "aauth:alice@agents.example".into(),
             agent_jkt,
             scope: "read".into(),
@@ -866,7 +866,8 @@ fn make_resource_token_for_ps() -> (String, PrivateKey, String) {
 
 #[test]
 fn token_exchange_immediate_success() {
-    let (resource_token, agent_key, agent_jwt) = make_resource_token_for_ps();
+    // Three-party: resource token aud is the PS.
+    let (resource_token, agent_key, agent_jwt) = make_resource_token("https://ps.example");
     let client = MockPsClient {
         deferred: false,
         posts: Mutex::new(0),
@@ -880,36 +881,76 @@ fn token_exchange_immediate_success() {
         &ExchangeOptions {
             expected_ps: Some("https://ps.example"),
             expected_agent: Some("aauth:alice@agents.example"),
+            expected_resource_iss: Some("https://resource.example"),
             ..Default::default()
         },
     )
     .unwrap();
     assert_eq!(auth_token, "auth-token-123");
     assert_eq!(*client.posts.lock().unwrap(), 1);
+}
 
-    // Finding #6: a resource token whose aud points at an unpinned PS is
-    // refused before anything is sent.
-    let (evil_token, _, _) = make_resource_token_for_ps();
-    let refused = exchange_resource_token(
+#[test]
+fn token_exchange_four_party_aud_is_as() {
+    // Four-party: the resource token's aud is the AS, not the PS. The agent
+    // still forwards to its own pinned PS, so this must succeed — the aud is
+    // not gated against the PS.
+    let (resource_token, agent_key, agent_jwt) = make_resource_token("https://as.example");
+    let client = MockPsClient {
+        deferred: false,
+        posts: Mutex::new(0),
+    };
+
+    let auth_token = exchange_resource_token(
         &client,
-        &evil_token,
+        &resource_token,
         &agent_key,
         &agent_jwt,
         &ExchangeOptions {
-            expected_ps: Some("https://my-real-ps.example"),
+            expected_ps: Some("https://ps.example"),
             expected_agent: Some("aauth:alice@agents.example"),
+            expected_resource_iss: Some("https://resource.example"),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(auth_token, "auth-token-123");
+}
+
+#[test]
+fn token_exchange_rejects_confused_deputy_issuer() {
+    // The resource token was issued by resource.example, but the agent thinks
+    // it contacted a different resource — reject before any network call
+    // (spec §6.6.3 step 3).
+    let (resource_token, agent_key, agent_jwt) = make_resource_token("https://ps.example");
+    let client = MockPsClient {
+        deferred: false,
+        posts: Mutex::new(0),
+    };
+
+    let refused = exchange_resource_token(
+        &client,
+        &resource_token,
+        &agent_key,
+        &agent_jwt,
+        &ExchangeOptions {
+            expected_ps: Some("https://ps.example"),
+            expected_agent: Some("aauth:alice@agents.example"),
+            expected_resource_iss: Some("https://other-resource.example"),
             ..Default::default()
         },
     );
-    assert!(
-        refused.is_err(),
-        "aud not matching the pinned PS must be refused"
+    assert!(refused.is_err(), "issuer mismatch must be refused");
+    assert_eq!(
+        *client.posts.lock().unwrap(),
+        0,
+        "must fail before contacting the PS"
     );
 }
 
 #[test]
 fn token_exchange_deferred_success() {
-    let (resource_token, agent_key, agent_jwt) = make_resource_token_for_ps();
+    let (resource_token, agent_key, agent_jwt) = make_resource_token("https://ps.example");
     let client = MockPsClient {
         deferred: true,
         posts: Mutex::new(0),
@@ -923,6 +964,7 @@ fn token_exchange_deferred_success() {
         &ExchangeOptions {
             expected_ps: Some("https://ps.example"),
             expected_agent: Some("aauth:alice@agents.example"),
+            expected_resource_iss: Some("https://resource.example"),
             poll_options: Some(PollOptions {
                 max_polls: 5,
                 default_wait: 0,
