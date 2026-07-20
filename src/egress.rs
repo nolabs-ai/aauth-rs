@@ -38,11 +38,24 @@ impl<T: EgressPolicy + ?Sized> EgressPolicy for &T {
     fn admit(&self, url: &str) -> Result<()> {
         (**self).admit(url)
     }
+
+    // Forward the inner policy's `admit_issuer` rather than inheriting the
+    // default, so a custom override is not silently discarded behind a `&T`.
+    fn admit_issuer(&self, iss: &str) -> Result<()> {
+        (**self).admit_issuer(iss)
+    }
 }
 
 impl<T: EgressPolicy + ?Sized> EgressPolicy for Box<T> {
     fn admit(&self, url: &str) -> Result<()> {
         (**self).admit(url)
+    }
+
+    // Forward the inner policy's `admit_issuer` rather than inheriting the
+    // default, so a custom override survives boxing (e.g. via
+    // `JwksFetcher::with_egress`).
+    fn admit_issuer(&self, iss: &str) -> Result<()> {
+        (**self).admit_issuer(iss)
     }
 }
 
@@ -203,5 +216,47 @@ fn ipv4_mapped(addr: Ipv6Addr) -> Option<Ipv4Addr> {
         Some(Ipv4Addr::new(a, b, c, d))
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A policy that overrides `admit_issuer` to skip the HTTPS check.
+    struct AllowAllIssuers;
+
+    impl EgressPolicy for AllowAllIssuers {
+        fn admit(&self, _url: &str) -> Result<()> {
+            Ok(())
+        }
+
+        fn admit_issuer(&self, _iss: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn box_forwards_admit_issuer_override() {
+        // A non-HTTPS issuer would be rejected by the default `admit_issuer`
+        // (via `validate_server_identifier`); the override must survive boxing.
+        let boxed: Box<dyn EgressPolicy + Send + Sync> = Box::new(AllowAllIssuers);
+        assert!(boxed.admit_issuer("http://127.0.0.1:8080").is_ok());
+    }
+
+    #[test]
+    fn ref_forwards_admit_issuer_override() {
+        let policy = AllowAllIssuers;
+        let by_ref: &dyn EgressPolicy = &policy;
+        assert!(by_ref.admit_issuer("http://127.0.0.1:8080").is_ok());
+    }
+
+    #[test]
+    fn default_admit_issuer_still_requires_https_through_box() {
+        // Without an override the default still runs: a non-HTTPS identifier
+        // is rejected even when the policy is boxed.
+        let boxed: Box<dyn EgressPolicy + Send + Sync> =
+            Box::new(StandardEgressPolicy::allow_localhost());
+        assert!(boxed.admit_issuer("http://127.0.0.1:8080").is_err());
     }
 }
