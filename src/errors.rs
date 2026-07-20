@@ -127,6 +127,20 @@ impl AAuthError {
 /// Crate-wide result alias.
 pub type Result<T> = std::result::Result<T, AAuthError>;
 
+impl From<httpsig::Error> for AAuthError {
+    fn from(error: httpsig::Error) -> Self {
+        let error_code = match &error {
+            httpsig::Error::InvalidField { .. } | httpsig::Error::InvalidComponent { .. } => {
+                ERROR_INVALID_INPUT
+            }
+            httpsig::Error::InvalidTargetUri(_) => ERROR_INVALID_REQUEST,
+            httpsig::Error::InvalidKey(_) => ERROR_INVALID_KEY,
+            httpsig::Error::VerificationFailed => ERROR_INVALID_SIGNATURE,
+        };
+        Self::signature_with_code(error.to_string(), error_code)
+    }
+}
+
 /// Build a standard AAuth token endpoint error response body (JSON).
 ///
 /// For authentication errors (401), use

@@ -1,0 +1,17 @@
+[package]
+name = "aauth-httpsig-policy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86"
+description = "Independent, fail-closed verification policy for HTTP Message Signatures"
+license = "Apache-2.0"
+repository = "https://github.com/nolabs-ai/aauth-rs"
+keywords = ["http-signatures", "rfc9421", "signature-key", "policy"]
+categories = ["authentication", "web-programming"]
+
+[lib]
+name = "httpsig_policy"
+
+[dependencies]
+httpsig = { package = "aauth-httpsig", version = "0.1.0", path = "../httpsig" }
+thiserror = "2"

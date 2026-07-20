@@ -7,11 +7,9 @@ use crate::keys::{
     calculate_jwk_thumbprint, calculate_jwk_thumbprint_sha512, jwk_to_public_key, Jwk,
     JwksResolver, PublicKey,
 };
-use crate::signing::base::build_signature_base;
-use crate::signing::input::parse_signature_input;
-use crate::signing::key::parse_signature_key;
-use crate::signing::signature::parse_signature;
 use crate::util::now_unix;
+use httpsig::{prepare_verification, RequestParts};
+use httpsig_policy::{Policy, VerificationPolicy};
 use serde_json::Value;
 use std::collections::HashMap;
 use url::Url;
@@ -27,6 +25,12 @@ pub struct VerifyOptions<'a> {
     pub created_window: i64,
     /// Override "now" (Unix seconds). Mainly for tests.
     pub now: Option<i64>,
+    /// Override the AAuth verification policy.
+    ///
+    /// Policy validation runs before key discovery. The default policy
+    /// explicitly allows AAuth's implemented schemes and requires the
+    /// protocol's request-binding components.
+    pub policy: Option<&'a dyn VerificationPolicy>,
 }
 
 impl Default for VerifyOptions<'_> {
@@ -36,6 +40,7 @@ impl Default for VerifyOptions<'_> {
             jwks_resolver: None,
             created_window: 60,
             now: None,
+            policy: None,
         }
     }
 }
@@ -58,34 +63,49 @@ pub fn verify_signature(
     options: &VerifyOptions<'_>,
 ) -> Result<bool> {
     let now = options.now.unwrap_or_else(now_unix);
-
-    // Parse Signature-Input
-    let input = parse_signature_input(signature_input_header)?;
-
-    // Verify created timestamp. Per spec §12.7.4 step 3 the `created`
-    // parameter is REQUIRED and is the primary replay defense for this
-    // profile (no nonce) — an absent `created` is a verification failure,
-    // not a skip.
-    match input.created() {
-        Some(created) => {
-            if (now - created).abs() > options.created_window {
-                return Ok(false);
-            }
+    let request = RequestParts {
+        method,
+        target_uri,
+        headers,
+        body,
+    };
+    let prepared = match prepare_verification(
+        &request,
+        signature_input_header,
+        signature_header,
+        signature_key_header,
+        None,
+    ) {
+        Ok(prepared) => prepared,
+        Err(httpsig::Error::InvalidField { field, message })
+            if (field == "Signature" || field == "Signature-Key")
+                && message.starts_with("missing label") =>
+        {
+            return Ok(false);
         }
-        None => return Ok(false),
-    }
+        Err(error) => return Err(error.into()),
+    };
 
-    // Parse Signature-Key
-    let parsed_key = parse_signature_key(signature_key_header)?;
-
-    // Verify label consistency across all three headers (SIG-KEY §3.1)
-    let sig_label = signature_header
-        .split_once('=')
-        .map(|(label, _)| label.trim());
-    match sig_label {
-        Some(sig_label) if sig_label == input.label && sig_label == parsed_key.label => {}
-        _ => return Ok(false),
+    // Reject unsafe or incomplete inputs before a scheme is allowed to drive
+    // key discovery. Callers can supply a protocol-specific policy instead.
+    let mut default_policy = Policy::new()
+        .allow_scheme("hwk")
+        .allow_scheme("jwks_uri")
+        .allow_scheme("jkt-jwt")
+        .allow_scheme("jwt")
+        .require_header_when_present("aauth-mission")
+        .max_age_seconds(options.created_window)
+        .future_skew_seconds(options.created_window);
+    let parsed_uri = Url::parse(target_uri)
+        .map_err(|e| AAuthError::signature(format!("Invalid target URI {target_uri}: {e}")))?;
+    if parsed_uri.query().is_some_and(|query| !query.is_empty()) {
+        default_policy = default_policy.require_component("@query");
     }
+    let policy: &dyn VerificationPolicy = options.policy.unwrap_or(&default_policy);
+    if policy.validate(&request, &prepared, now).is_err() {
+        return Ok(false);
+    }
+    let parsed_key = &prepared.signature_key;
 
     // --- Resolve the public key based on scheme ---
 
@@ -177,51 +197,7 @@ pub fn verify_signature(
         }
     };
 
-    // Reconstruct the signature base
-    let parsed_uri = Url::parse(target_uri)
-        .map_err(|e| AAuthError::signature(format!("Invalid target URI {target_uri}: {e}")))?;
-    let authority = match (parsed_uri.host_str(), parsed_uri.port()) {
-        (Some(host), Some(port)) => format!("{host}:{port}"),
-        (Some(host), None) => host.to_string(),
-        (None, _) => {
-            return Err(AAuthError::signature(format!(
-                "Target URI has no host: {target_uri}"
-            )))
-        }
-    };
-    let path = if parsed_uri.path().is_empty() {
-        "/"
-    } else {
-        parsed_uri.path()
-    };
-    let query = parsed_uri.query().filter(|q| !q.is_empty());
-
-    // The part after "{label}=" becomes the @signature-params line
-    let prefix = format!("{}=", input.label);
-    let signature_params = signature_input_header
-        .strip_prefix(&prefix)
-        .unwrap_or(signature_input_header);
-    if signature_params.is_empty() {
-        return Ok(false);
-    }
-
-    let signature_base = build_signature_base(
-        method,
-        &authority,
-        path,
-        query,
-        headers,
-        body,
-        signature_key_header,
-        &input.components,
-        signature_params,
-    )?;
-
-    let signature_bytes = parse_signature(signature_header, Some(&input.label))?;
-
-    Ok(public_key
-        .verify(&signature_bytes, signature_base.as_bytes())
-        .is_ok())
+    Ok(prepared.verify(&public_key).is_ok())
 }
 
 /// Verify the `jkt-jwt` scheme per SIG-KEY §3.4.

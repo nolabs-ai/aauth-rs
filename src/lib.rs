@@ -4,9 +4,11 @@
 //!
 //! # Layers
 //!
-//! - [`signing`] — the low-level HTTP Message Signatures layer with the
-//!   `Signature-Key` header extension (`hwk`, `jkt-jwt`, `jwks_uri`, `jwt`
-//!   schemes). Usable standalone.
+//! - [`httpsig`] — the reusable HTTP Message Signatures mechanism crate with
+//!   the `Signature-Key` header extension.
+//! - [`httpsig_policy`] — independent, overridable verification policy.
+//! - [`signing`] — the AAuth signing and verification profile built on those
+//!   reusable crates.
 //! - [`keys`] — key pairs (Ed25519, P-256, P-384), JWKs, RFC 7638
 //!   thumbprints, and JWKS discovery with caching.
 //! - [`tokens`] — agent (`aa-agent+jwt`), auth (`aa-auth+jwt`), and resource
@@ -75,3 +77,5 @@ pub mod tokens;
 mod util;
 
 pub use errors::{AAuthError, Result};
+pub use httpsig;
+pub use httpsig_policy;
