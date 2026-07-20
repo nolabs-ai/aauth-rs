@@ -4,7 +4,6 @@ use crate::errors::{AAuthError, Result};
 use crate::keys::{PrivateKey, PublicKey};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
-use p256::elliptic_curve::sec1::FromEncodedPoint as _;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256, Sha512};
@@ -82,7 +81,7 @@ pub fn public_key_to_jwk(public_key: &PublicKey, kid: Option<&str>) -> Jwk {
             ..Default::default()
         },
         PublicKey::P256(vk) => {
-            let point = vk.to_encoded_point(false);
+            let point = vk.to_sec1_point(false);
             Jwk {
                 kty: "EC".into(),
                 crv: Some("P-256".into()),
@@ -92,7 +91,7 @@ pub fn public_key_to_jwk(public_key: &PublicKey, kid: Option<&str>) -> Jwk {
             }
         }
         PublicKey::P384(vk) => {
-            let point = vk.to_encoded_point(false);
+            let point = vk.to_sec1_point(false);
             Jwk {
                 kty: "EC".into(),
                 crv: Some("P-384".into()),
@@ -141,26 +140,22 @@ pub fn jwk_to_public_key(jwk: &Jwk) -> Result<PublicKey> {
             let y = b64_field(jwk, &jwk.y, "y")?;
             match jwk.crv.as_deref() {
                 Some("P-256") => {
-                    let point = p256::EncodedPoint::from_affine_coordinates(
-                        x.as_slice().into(),
-                        y.as_slice().into(),
-                        false,
-                    );
-                    let pk_opt = p256::PublicKey::from_encoded_point(&point);
-                    let pk = Option::<p256::PublicKey>::from(pk_opt)
-                        .ok_or_else(|| AAuthError::signature("Invalid P-256 public key"))?;
-                    Ok(PublicKey::P256(p256::ecdsa::VerifyingKey::from(pk)))
+                    let mut point = Vec::with_capacity(1 + x.len() + y.len());
+                    point.push(0x04);
+                    point.extend_from_slice(&x);
+                    point.extend_from_slice(&y);
+                    let vk = p256::ecdsa::VerifyingKey::from_sec1_bytes(&point)
+                        .map_err(|_| AAuthError::signature("Invalid P-256 public key"))?;
+                    Ok(PublicKey::P256(vk))
                 }
                 Some("P-384") => {
-                    let point = p384::EncodedPoint::from_affine_coordinates(
-                        x.as_slice().into(),
-                        y.as_slice().into(),
-                        false,
-                    );
-                    let pk_opt = p384::PublicKey::from_encoded_point(&point);
-                    let pk = Option::<p384::PublicKey>::from(pk_opt)
-                        .ok_or_else(|| AAuthError::signature("Invalid P-384 public key"))?;
-                    Ok(PublicKey::P384(p384::ecdsa::VerifyingKey::from(pk)))
+                    let mut point = Vec::with_capacity(1 + x.len() + y.len());
+                    point.push(0x04);
+                    point.extend_from_slice(&x);
+                    point.extend_from_slice(&y);
+                    let vk = p384::ecdsa::VerifyingKey::from_sec1_bytes(&point)
+                        .map_err(|_| AAuthError::signature("Invalid P-384 public key"))?;
+                    Ok(PublicKey::P384(vk))
                 }
                 other => Err(AAuthError::signature(format!(
                     "Unsupported EC curve: {other:?}"

@@ -34,14 +34,14 @@ const CROCKFORD: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 /// the distribution is uniform (no modulo bias), and `length` is raised to
 /// [`MIN_INTERACTION_CODE_SYMBOLS`] if smaller.
 pub fn generate_interaction_code(length: usize) -> String {
-    use rand_core::RngCore as _;
+    use rand_core::Rng as _;
 
     let length = length.max(MIN_INTERACTION_CODE_SYMBOLS);
 
     // One byte per symbol yields 8 bits to draw a 5-bit symbol from — always
     // enough, so a single fill covers the whole code.
     let mut bytes = vec![0u8; length];
-    rand_core::OsRng.fill_bytes(&mut bytes);
+    rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut bytes);
 
     // Walk the buffer as a bitstream, taking a clean 5 bits per symbol.
     let mut code = String::with_capacity(length);
