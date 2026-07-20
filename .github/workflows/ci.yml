@@ -54,6 +54,13 @@ jobs:
       - run: cargo test --all-features
       # Compile the README examples (examples/) so they can't rot.
       - run: cargo build --examples --all-features
+      # Smoke-run the self-contained examples so a runtime regression in the
+      # public API is caught, not just a compile break. exchange_resource_token
+      # needs a live person server, so it is built above but not run here.
+      - run: |
+          for example in challenge sign_request tokens verify_request; do
+            cargo run --example "$example"
+          done
 
   docs:
     name: doc

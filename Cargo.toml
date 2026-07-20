@@ -35,6 +35,8 @@ reqwest-client = ["dep:reqwest"]
 
 [dev-dependencies]
 base64 = "0.22"
+# Minimal blocking HTTP server for real-socket end-to-end tests.
+tiny_http = "0.12"
 
 # This example uses the built-in reqwest client, so it only builds when that
 # feature is enabled (`cargo build --examples` skips it otherwise).
