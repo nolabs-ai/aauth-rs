@@ -5,6 +5,15 @@
 
 Rust implementation of the [AAuth protocol](https://github.com/dickhardt/AAuth) - an authorization protocol for agent-to-resource access built on HTTP Message Signatures (RFC 9421) and JWT-based proof-of-possession tokens.
 
+The repository is a three-package workspace:
+
+- `aauth-httpsig` (`httpsig` in Rust) provides reusable HTTP Message Signature
+  and `Signature-Key` mechanisms without application trust decisions.
+- `aauth-httpsig-policy` (`httpsig_policy` in Rust) provides independent,
+  fail-closed policy primitives that applications can configure or replace.
+- `aauth` applies those crates to the AAuth protocol, including its
+  JWT/JWKS-based key discovery and network egress policy.
+
 AAuth defines how an AI agent proves its identity and obtains authorization to call a protected resource. This crate handles both sides of that exchange:
 
 - **Agents** get request signing (RFC 9421 with the `Signature-Key` header extension), 401 challenge handling, resource-token exchange with an authorization / person server, and polling for deferred (202) responses.
@@ -194,9 +203,11 @@ let claims = verify_agent_token(&token, &resolver, None)?;
 
 ## Crate layout
 
-| Module | Responsibility |
+| Package or module | Responsibility |
 |---|---|
-| `aauth::signing` | RFC 9421 signature base, `Signature-Input` / `Signature` / `Signature-Key` headers, `sign_request`, `verify_signature`. Usable standalone. |
+| `aauth-httpsig` / `httpsig` | Framework-independent RFC 9421 and `Signature-Key` parsing, signing, and cryptographic verification |
+| `aauth-httpsig-policy` / `httpsig_policy` | Scheme, timestamp, and covered-component policy; denies every scheme until explicitly allowed |
+| `aauth::signing` | AAuth signing and verification profile built on `httpsig`, with an overridable `VerificationPolicy` |
 | `aauth::keys` | Key pairs, JWKs, RFC 7638 thumbprints, `JwksFetcher` / `JwksCache` / `JwksResolver` |
 | `aauth::jwt` | Minimal JWS (EdDSA, ES256, ES384) used by the token layer |
 | `aauth::tokens` | `aa-agent+jwt`, `aa-auth+jwt`, `aa-resource+jwt` create/verify |
@@ -213,6 +224,9 @@ let claims = verify_agent_token(&token, &resolver, None)?;
 
 Protocol-level verification is strict and fails closed:
 
+- **Policy before discovery.** Signature scheme, timestamp, and required
+  covered-component policy runs before JWT/JWKS resolution. The generic policy
+  allows no `Signature-Key` scheme until an application explicitly opts in.
 - **Auth-token audience binding.** A resource fully validates an auth token's
   claims (`typ`, signature via JWKS discovery, `aud` == this resource,
   `agent`, `act`, and that `sub`/`scope` is present) — not just the HTTP

@@ -8,7 +8,6 @@
 mod algorithms;
 mod base;
 mod input;
-mod key;
 mod signature;
 mod signer;
 mod verifier;
@@ -21,8 +20,11 @@ pub use base::{
     build_signature_base, build_signature_params, calculate_content_digest,
     determine_covered_components,
 };
+pub use httpsig::{
+    build_signature_key_header, parse_signature_key, parse_signature_keys, ParsedSignatureKey,
+    SigScheme,
+};
 pub use input::{build_signature_input_header, parse_signature_input, SignatureInputParams};
-pub use key::{build_signature_key_header, parse_signature_key, ParsedSignatureKey, SigScheme};
 pub use signature::{build_signature_header, parse_signature};
 pub use signer::{sign_request, SignOptions, SignatureHeaders};
 pub use verifier::{verify_signature, VerifyOptions};

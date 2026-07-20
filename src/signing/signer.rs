@@ -6,9 +6,9 @@ use crate::signing::base::{
     build_signature_base, build_signature_params, calculate_content_digest,
     determine_covered_components,
 };
-use crate::signing::key::{build_signature_key_header, SigScheme};
 use crate::signing::signature::build_signature_header;
 use crate::util::now_unix;
+use httpsig::{build_signature_key_header, SigScheme};
 use std::collections::HashMap;
 use url::Url;
 
