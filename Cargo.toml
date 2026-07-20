@@ -12,7 +12,7 @@ categories = ["authentication", "web-programming"]
 [dependencies]
 base64 = "0.22"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
-p256 = { version = "0.13", features = ["ecdsa"] }
+p256 = { version = "0.14", features = ["ecdsa"] }
 p384 = { version = "0.13", features = ["ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 serde = { version = "1", features = ["derive"] }
