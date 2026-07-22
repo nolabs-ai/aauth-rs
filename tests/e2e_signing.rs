@@ -6,9 +6,9 @@
 //! discovery, so no network or resolver is involved and the flow is exercised
 //! exactly as an application would use it.
 
-use aauth::keys::generate_ed25519_keypair;
-use aauth::resource::RequestVerifier;
-use aauth::signing::{build_signature_key_header, sign_request, SigScheme, SignOptions};
+use aauth_core::keys::generate_ed25519_keypair;
+use aauth_core::resource::RequestVerifier;
+use aauth_core::signing::{build_signature_key_header, sign_request, SigScheme, SignOptions};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -50,7 +50,7 @@ fn verify(
     method: &str,
     uri: &str,
     headers: &HashMap<String, String>,
-) -> aauth::resource::VerificationResult {
+) -> aauth_core::resource::VerificationResult {
     verifier().verify_request(method, uri, headers, None, false, false)
 }
 

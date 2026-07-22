@@ -1,16 +1,16 @@
 //! Tests for the AAuth protocol layer: tokens, headers, identifiers,
 //! deferred responses, and the agent/resource roles.
 
-use aauth::agent::{
+use aauth_core::agent::{
     exchange_resource_token, extract_resource_token, poll_pending_url, ChallengeHandler,
     ExchangeOptions, PollCallbacks, PollOptions,
 };
-use aauth::deferred::{
+use aauth_core::deferred::{
     build_pending_response_body, build_pending_response_headers, detect_token_request_mode,
     generate_interaction_code, parse_pending_response, PendingBody, PendingHeaders,
     TokenRequestMode,
 };
-use aauth::headers::{
+use aauth_core::headers::{
     build_accept_signature, build_auth_token_requirement, build_interaction_requirement,
     build_signature_error, get_challenge_header_value, parse_aauth_header,
     parse_aauth_mission_header, parse_accept_signature, parse_authorization_aauth_header,
@@ -18,16 +18,18 @@ use aauth::headers::{
     HEADER_ACCEPT_SIGNATURE, REQUIRE_AUTH_TOKEN, REQUIRE_IDENTITY, REQUIRE_PSEUDONYM, SIGKEY_JKT,
     SIGKEY_URI,
 };
-use aauth::http::{HttpClient, HttpResponse};
-use aauth::identifiers::{
+use aauth_core::http::{HttpClient, HttpResponse};
+use aauth_core::identifiers::{
     agent_identifier_from_server_url, parse_agent_identifier, validate_agent_identifier,
     validate_endpoint_url, validate_server_identifier,
 };
-use aauth::keys::{
+use aauth_core::keys::{
     calculate_jwk_thumbprint, generate_ed25519_keypair, public_key_to_jwk, PrivateKey, PublicKey,
 };
-use aauth::resource::{ChallengeBuilder, ChallengeRequest, RequestVerifier, ResourceTokenIssuer};
-use aauth::tokens::{
+use aauth_core::resource::{
+    ChallengeBuilder, ChallengeRequest, RequestVerifier, ResourceTokenIssuer,
+};
+use aauth_core::tokens::{
     build_act_claim, create_agent_token, create_auth_token, create_resource_token,
     parse_token_claims, verify_agent_token, verify_resource_token, verify_token,
     verify_upstream_token, AgentTokenClaims, AuthTokenClaims, ResourceTokenClaims,
@@ -400,7 +402,7 @@ fn deferred_helpers() {
 
 #[test]
 fn resource_verifier_hwk_flow() {
-    use aauth::signing::{sign_request, SigScheme, SignOptions};
+    use aauth_core::signing::{sign_request, SigScheme, SignOptions};
 
     let (agent_key, _) = generate_ed25519_keypair();
     let mut headers = HashMap::new();
@@ -453,7 +455,7 @@ fn resource_verifier_hwk_flow() {
 
 #[test]
 fn resource_verifier_auth_token_flow() {
-    use aauth::signing::{sign_request, SigScheme, SignOptions};
+    use aauth_core::signing::{sign_request, SigScheme, SignOptions};
 
     // Agent key and AS key
     let (agent_key, agent_public) = generate_ed25519_keypair();
@@ -782,7 +784,7 @@ impl HttpClient for MockPsClient {
         url: &str,
         headers: &HashMap<String, String>,
         _body: Option<&[u8]>,
-    ) -> aauth::Result<HttpResponse> {
+    ) -> aauth_core::Result<HttpResponse> {
         if url.contains("/.well-known/aauth-person") {
             return Ok(json_response(
                 200,

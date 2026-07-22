@@ -2,9 +2,9 @@
 //! egress admission, JWKS issuer binding, required `created`, and SSRF
 //! rejection of malformed issuers.
 
-use aauth::egress::{EgressPolicy, StandardEgressPolicy};
-use aauth::keys::{generate_ed25519_keypair, public_key_to_jwk, JwksFetcher};
-use aauth::signing::{sign_request, verify_signature, SigScheme, SignOptions, VerifyOptions};
+use aauth_core::egress::{EgressPolicy, StandardEgressPolicy};
+use aauth_core::keys::{generate_ed25519_keypair, public_key_to_jwk, JwksFetcher};
+use aauth_core::signing::{sign_request, verify_signature, SigScheme, SignOptions, VerifyOptions};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -52,7 +52,7 @@ fn admit_issuer_requires_valid_https_identifier() {
 
 #[test]
 fn jwt_scheme_rejects_non_identifier_iss() {
-    use aauth::jwt;
+    use aauth_core::jwt;
 
     // An agent token whose `iss` is an internal, non-identifier URL, signed
     // consistently by the issuer key and confirming the request-signing key
@@ -153,21 +153,21 @@ struct StaticClient {
     calls: Mutex<u32>,
 }
 
-impl aauth::http::HttpClient for StaticClient {
+impl aauth_core::http::HttpClient for StaticClient {
     fn execute(
         &self,
         _method: &str,
         url: &str,
         _headers: &HashMap<String, String>,
         _body: Option<&[u8]>,
-    ) -> aauth::Result<aauth::http::HttpResponse> {
+    ) -> aauth_core::Result<aauth_core::http::HttpResponse> {
         *self.calls.lock().unwrap() += 1;
         let body = if url.contains("/.well-known/") {
             &self.metadata
         } else {
             &self.jwks
         };
-        Ok(aauth::http::HttpResponse {
+        Ok(aauth_core::http::HttpResponse {
             status: 200,
             headers: HashMap::from([("content-type".to_string(), "application/json".to_string())]),
             body: serde_json::to_vec(body).unwrap(),
@@ -220,8 +220,8 @@ fn jwks_fetcher_egress_blocks_internal_issuer() {
 
 #[test]
 fn auth_token_without_exp_is_rejected() {
-    use aauth::jwt;
-    use aauth::tokens::{verify_token, VerifyTokenOptions};
+    use aauth_core::jwt;
+    use aauth_core::tokens::{verify_token, VerifyTokenOptions};
 
     // An auth token that is well-formed and correctly signed but carries no
     // `exp` claim — it must be rejected rather than treated as non-expiring.

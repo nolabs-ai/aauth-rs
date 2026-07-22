@@ -11,10 +11,10 @@
 //! `cargo test --no-default-features` still builds.
 #![cfg(feature = "reqwest-client")]
 
-use aauth::egress::{EgressPolicy, StandardEgressPolicy};
-use aauth::errors::Result;
-use aauth::http::{HttpClient, ReqwestClient};
-use aauth::keys::{generate_ed25519_keypair, get_key_by_kid, public_key_to_jwk, JwksFetcher};
+use aauth_core::egress::{EgressPolicy, StandardEgressPolicy};
+use aauth_core::errors::Result;
+use aauth_core::http::{HttpClient, ReqwestClient};
+use aauth_core::keys::{generate_ed25519_keypair, get_key_by_kid, public_key_to_jwk, JwksFetcher};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};

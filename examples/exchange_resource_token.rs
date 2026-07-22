@@ -11,12 +11,12 @@
 //!
 //! Without the env var it prints usage and exits, so it is always safe to run.
 
-use aauth::agent::{exchange_resource_token, ExchangeOptions};
-use aauth::http::ReqwestClient;
-use aauth::keys::{generate_ed25519_keypair, public_key_to_jwk};
-use aauth::tokens::{create_agent_token, AgentTokenClaims};
+use aauth_core::agent::{exchange_resource_token, ExchangeOptions};
+use aauth_core::http::ReqwestClient;
+use aauth_core::keys::{generate_ed25519_keypair, public_key_to_jwk};
+use aauth_core::tokens::{create_agent_token, AgentTokenClaims};
 
-fn main() -> aauth::Result<()> {
+fn main() -> aauth_core::Result<()> {
     let Ok(resource_token) = std::env::var("AAUTH_RESOURCE_TOKEN") else {
         eprintln!(
             "set AAUTH_RESOURCE_TOKEN=<jwt> (extracted from a 401 challenge) to run the exchange"

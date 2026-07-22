@@ -293,7 +293,7 @@ pub fn verify_token(
 /// top-level `agent` claim and is never repeated inside `act`.
 ///
 /// ```
-/// # use aauth::tokens::build_act_claim;
+/// # use aauth_core::tokens::build_act_claim;
 /// # use serde_json::json;
 /// // booking was delegated by asst; booking presents downstream at payments.
 /// let act = build_act_claim("aauth:asst@agent.example", None);

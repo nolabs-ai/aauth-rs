@@ -1,10 +1,10 @@
 //! Tests for the keys and RFC 9421 signing layers.
 
-use aauth::keys::{
+use aauth_core::keys::{
     calculate_jwk_thumbprint, generate_ed25519_keypair, generate_p256_keypair,
     generate_p384_keypair, jwk_to_public_key, private_key_to_jwk, public_key_to_jwk, Jwk,
 };
-use aauth::signing::{
+use aauth_core::signing::{
     build_signature_key_header, calculate_content_digest, parse_signature, parse_signature_input,
     parse_signature_key, sign_request, verify_signature, SigScheme, SignOptions, VerifyOptions,
 };
@@ -404,7 +404,7 @@ fn jwks_uri_scheme_sign_verify() {
 
 #[test]
 fn jkt_jwt_scheme_sign_verify() {
-    use aauth::jwt;
+    use aauth_core::jwt;
 
     // Enclave (long-lived) key and ephemeral request-signing key
     let (enclave_private, enclave_public) = generate_ed25519_keypair();

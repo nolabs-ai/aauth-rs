@@ -3,14 +3,14 @@
 //!
 //! Run: `cargo run --example verify_request`
 
-use aauth::keys::{generate_ed25519_keypair, public_key_to_jwk};
-use aauth::resource::RequestVerifier;
-use aauth::signing::{sign_request, SigScheme, SignOptions};
-use aauth::tokens::{create_auth_token, AuthTokenClaims};
+use aauth_core::keys::{generate_ed25519_keypair, public_key_to_jwk};
+use aauth_core::resource::RequestVerifier;
+use aauth_core::signing::{sign_request, SigScheme, SignOptions};
+use aauth_core::tokens::{create_auth_token, AuthTokenClaims};
 use serde_json::json;
 use std::collections::HashMap;
 
-fn main() -> aauth::Result<()> {
+fn main() -> aauth_core::Result<()> {
     let agent_id = "aauth:alice@agents.example";
 
     // The agent's request-signing key, and the AS that issues auth tokens.

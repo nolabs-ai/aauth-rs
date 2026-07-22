@@ -3,10 +3,10 @@
 //!
 //! Run: `cargo run --example challenge`
 
-use aauth::keys::generate_ed25519_keypair;
-use aauth::resource::{ChallengeBuilder, ChallengeRequest};
+use aauth_core::keys::generate_ed25519_keypair;
+use aauth_core::resource::{ChallengeBuilder, ChallengeRequest};
 
-fn main() -> aauth::Result<()> {
+fn main() -> aauth_core::Result<()> {
     let (resource_private_key, _) = generate_ed25519_keypair();
     let (_, agent_public_key) = generate_ed25519_keypair();
 

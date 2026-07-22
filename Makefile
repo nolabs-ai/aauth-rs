@@ -1,4 +1,4 @@
-# aauth — developer tasks
+# aauth-core — developer tasks
 #
 # Run `make` (or `make help`) to list targets. `make ci` mirrors what the
 # GitHub Actions PR workflow runs.

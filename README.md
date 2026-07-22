@@ -1,4 +1,4 @@
-# aauth-rs
+# aauth-core
 
 > [!WARNING]
 > This is an early-stage and experimental implementation of the AAuth protocol. It has not yet been fully audited by a third party.
@@ -11,8 +11,9 @@ The repository is a three-package workspace:
   and `Signature-Key` mechanisms without application trust decisions.
 - `aauth-httpsig-policy` (`httpsig_policy` in Rust) provides independent,
   fail-closed policy primitives that applications can configure or replace.
-- `aauth` applies those crates to the AAuth protocol, including its
-  JWT/JWKS-based key discovery and network egress policy.
+- `aauth-core` (`aauth_core` in Rust) applies those crates to the AAuth
+  protocol, including its JWT/JWKS-based key discovery and network egress
+  policy.
 
 AAuth defines how an AI agent proves its identity and obtains authorization to call a protected resource. This crate handles both sides of that exchange:
 
@@ -39,7 +40,7 @@ Networking is abstracted behind an `HttpClient` trait — the core has no networ
 
 ```toml
 [dependencies]
-aauth = { version = "0.1", features = ["reqwest-client"] }
+aauth-core = { version = "0.1", features = ["reqwest-client"] }
 ```
 
 ## Quick start
@@ -52,8 +53,8 @@ Each snippet below has a complete, runnable counterpart under
 ### Sign a request (agent)
 
 ```rust
-use aauth::keys::generate_ed25519_keypair;
-use aauth::signing::{sign_request, SigScheme, SignOptions};
+use aauth_core::keys::generate_ed25519_keypair;
+use aauth_core::signing::{sign_request, SigScheme, SignOptions};
 use std::collections::HashMap;
 
 let (private_key, _public_key) = generate_ed25519_keypair();
@@ -96,7 +97,7 @@ sign_request(
 ### Verify a request (resource server)
 
 ```rust
-use aauth::resource::RequestVerifier;
+use aauth_core::resource::RequestVerifier;
 
 let verifier = RequestVerifier::new(vec!["resource.example".to_string()])
     .with_resource_id("https://resource.example") // expected auth-token aud
@@ -124,7 +125,7 @@ rather than silently trusted.
 ### Challenge an agent (resource server)
 
 ```rust
-use aauth::resource::{ChallengeBuilder, ChallengeRequest};
+use aauth_core::resource::{ChallengeBuilder, ChallengeRequest};
 
 let builder = ChallengeBuilder::new(
     "https://resource.example",
@@ -148,8 +149,8 @@ let (header_name, header_value) = builder.build_challenge(&ChallengeRequest {
 ### Exchange a resource token for an auth token (agent)
 
 ```rust
-use aauth::agent::{exchange_resource_token, extract_resource_token, ExchangeOptions};
-use aauth::http::ReqwestClient; // feature = "reqwest-client"
+use aauth_core::agent::{exchange_resource_token, extract_resource_token, ExchangeOptions};
+use aauth_core::http::ReqwestClient; // feature = "reqwest-client"
 
 // After receiving a 401 challenge:
 let resource_token = extract_resource_token(&response_headers).unwrap();
@@ -181,8 +182,8 @@ let auth_token = exchange_resource_token(
 ### Tokens
 
 ```rust
-use aauth::keys::{generate_ed25519_keypair, public_key_to_jwk};
-use aauth::tokens::{create_agent_token, verify_agent_token, AgentTokenClaims};
+use aauth_core::keys::{generate_ed25519_keypair, public_key_to_jwk};
+use aauth_core::tokens::{create_agent_token, verify_agent_token, AgentTokenClaims};
 
 let (server_key, server_public) = generate_ed25519_keypair();
 let (_, delegate_public) = generate_ed25519_keypair();
@@ -207,18 +208,18 @@ let claims = verify_agent_token(&token, &resolver, None)?;
 |---|---|
 | `aauth-httpsig` / `httpsig` | Framework-independent RFC 9421 and `Signature-Key` parsing, signing, and cryptographic verification |
 | `aauth-httpsig-policy` / `httpsig_policy` | Scheme, timestamp, and covered-component policy; denies every scheme until explicitly allowed |
-| `aauth::signing` | AAuth signing and verification profile built on `httpsig`, with an overridable `VerificationPolicy` |
-| `aauth::keys` | Key pairs, JWKs, RFC 7638 thumbprints, `JwksFetcher` / `JwksCache` / `JwksResolver` |
-| `aauth::jwt` | Minimal JWS (EdDSA, ES256, ES384) used by the token layer |
-| `aauth::tokens` | `aa-agent+jwt`, `aa-auth+jwt`, `aa-resource+jwt` create/verify |
-| `aauth::headers` | Protocol headers: requirements, `Accept-Signature`, `Signature-Error`, mission, capabilities |
-| `aauth::deferred` | 202 pending responses, interaction codes, token endpoint modes |
-| `aauth::metadata` | Well-known metadata generation and fetching |
-| `aauth::agent` | Agent role: `AgentRequestSigner`, `ChallengeHandler`, `poll_pending_url`, `exchange_resource_token` |
-| `aauth::resource` | Resource role: `RequestVerifier`, `ChallengeBuilder`, `ResourceTokenIssuer` |
-| `aauth::http` | `HttpClient` trait (+ `ReqwestClient` behind the `reqwest-client` feature) |
-| `aauth::identifiers` | `aauth:local@domain` and server identifier validation |
-| `aauth::egress` | `EgressPolicy` / `StandardEgressPolicy` — SSRF admission for key discovery and token exchange |
+| `aauth_core::signing` | AAuth signing and verification profile built on `httpsig`, with an overridable `VerificationPolicy` |
+| `aauth_core::keys` | Key pairs, JWKs, RFC 7638 thumbprints, `JwksFetcher` / `JwksCache` / `JwksResolver` |
+| `aauth_core::jwt` | Minimal JWS (EdDSA, ES256, ES384) used by the token layer |
+| `aauth_core::tokens` | `aa-agent+jwt`, `aa-auth+jwt`, `aa-resource+jwt` create/verify |
+| `aauth_core::headers` | Protocol headers: requirements, `Accept-Signature`, `Signature-Error`, mission, capabilities |
+| `aauth_core::deferred` | 202 pending responses, interaction codes, token endpoint modes |
+| `aauth_core::metadata` | Well-known metadata generation and fetching |
+| `aauth_core::agent` | Agent role: `AgentRequestSigner`, `ChallengeHandler`, `poll_pending_url`, `exchange_resource_token` |
+| `aauth_core::resource` | Resource role: `RequestVerifier`, `ChallengeBuilder`, `ResourceTokenIssuer` |
+| `aauth_core::http` | `HttpClient` trait (+ `ReqwestClient` behind the `reqwest-client` feature) |
+| `aauth_core::identifiers` | `aauth:local@domain` and server identifier validation |
+| `aauth_core::egress` | `EgressPolicy` / `StandardEgressPolicy` — SSRF admission for key discovery and token exchange |
 
 ## Security posture
 
@@ -237,7 +238,7 @@ Protocol-level verification is strict and fails closed:
   freshness window (default 60s), not full anti-replay — the profile defines
   no per-request nonce, so replay protection within the window rests on token
   `jti`, not the message signature.
-- **SSRF admission (`aauth::egress`) — hardening beyond the spec.** The draft
+- **SSRF admission (`aauth_core::egress`) — hardening beyond the spec.** The draft
   has no egress section, but before any issuer-metadata or `jwks_uri` fetch
   (verifier / `JwksFetcher`) or PS token-endpoint dial (agent exchange), the
   target is checked against an `EgressPolicy`. The default

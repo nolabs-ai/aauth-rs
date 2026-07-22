@@ -2,11 +2,11 @@
 //!
 //! Run: `cargo run --example tokens`
 
-use aauth::keys::{generate_ed25519_keypair, public_key_to_jwk};
-use aauth::tokens::{create_agent_token, verify_agent_token, AgentTokenClaims};
+use aauth_core::keys::{generate_ed25519_keypair, public_key_to_jwk};
+use aauth_core::tokens::{create_agent_token, verify_agent_token, AgentTokenClaims};
 use serde_json::json;
 
-fn main() -> aauth::Result<()> {
+fn main() -> aauth_core::Result<()> {
     let (server_key, server_public) = generate_ed25519_keypair();
     let (_, delegate_public) = generate_ed25519_keypair();
 

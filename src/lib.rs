@@ -29,8 +29,8 @@
 //! # Quick start: sign and verify a request
 //!
 //! ```
-//! use aauth::keys::generate_ed25519_keypair;
-//! use aauth::signing::{sign_request, verify_signature, SigScheme, SignOptions, VerifyOptions};
+//! use aauth_core::keys::generate_ed25519_keypair;
+//! use aauth_core::signing::{sign_request, verify_signature, SigScheme, SignOptions, VerifyOptions};
 //! use std::collections::HashMap;
 //!
 //! let (private_key, _public) = generate_ed25519_keypair();
