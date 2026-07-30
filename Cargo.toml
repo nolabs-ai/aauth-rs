@@ -14,7 +14,7 @@ keywords = ["aauth", "agents", "http-signatures", "rfc9421", "authorization"]
 categories = ["authentication", "web-programming"]
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 getrandom = { version = "0.4", features = ["sys_rng"] }
 httpsig = { package = "aauth-httpsig", version = "0.1.0", path = "crates/httpsig" }
 httpsig-policy = { package = "aauth-httpsig-policy", version = "0.1.0", path = "crates/httpsig-policy" }
@@ -34,7 +34,7 @@ default = []
 reqwest-client = ["dep:reqwest"]
 
 [dev-dependencies]
-base64 = "0.22"
+base64 = "0.23"
 # Minimal blocking HTTP server for real-socket end-to-end tests.
 tiny_http = "0.12"
 
