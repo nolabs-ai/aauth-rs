@@ -3,11 +3,13 @@
 use crate::{Error, Result, ECDSA_P256_SHA256, ECDSA_P384_SHA384, ED25519};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
+use ed25519_dalek::pkcs8::{DecodePrivateKey as _, EncodePrivateKey as _};
 use p256::elliptic_curve::Generate as _;
 use rand_core::UnwrapErr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256, Sha512};
+use zeroize::Zeroizing;
 
 /// A private signing key supported by the built-in crypto provider.
 #[derive(Clone)]
@@ -97,6 +99,43 @@ impl PrivateKey {
             Self::P256(_) => ECDSA_P256_SHA256,
             Self::P384(_) => ECDSA_P384_SHA384,
         }
+    }
+
+    /// Encode as a PKCS#8 DER document, for callers that need to persist the
+    /// key (e.g. in a keystore or file). Returned wrapped in [`Zeroizing`]
+    /// since it's raw private-key material — `to_pkcs8_der()` on the
+    /// underlying `ed25519-dalek` key already returns a zeroizing
+    /// `SecretDocument`; copying it into a bare `Vec<u8>` would silently
+    /// drop that guarantee.
+    ///
+    /// Only Ed25519 is supported; ECDSA PKCS#8 export is not implemented.
+    pub fn to_pkcs8_der(&self) -> Result<Zeroizing<Vec<u8>>> {
+        match self {
+            Self::Ed25519(key) => Ok(Zeroizing::new(
+                key.to_pkcs8_der()
+                    .map_err(|error| Error::key(format!("PKCS#8 encoding failed: {error}")))?
+                    .as_bytes()
+                    .to_vec(),
+            )),
+            Self::P256(_) | Self::P384(_) => Err(Error::key(
+                "PKCS#8 export is only supported for Ed25519 keys",
+            )),
+        }
+    }
+
+    /// Decode an Ed25519 private key from a PKCS#8 DER document, as produced
+    /// by [`PrivateKey::to_pkcs8_der`] or `openssl genpkey -algorithm ed25519`.
+    pub fn from_pkcs8_der(der: &[u8]) -> Result<Self> {
+        let key = ed25519_dalek::SigningKey::from_pkcs8_der(der)
+            .map_err(|error| Error::key(format!("invalid PKCS#8 Ed25519 key: {error}")))?;
+        Ok(Self::Ed25519(key))
+    }
+
+    /// Decode an Ed25519 private key from a PKCS#8 PEM document (`-----BEGIN PRIVATE KEY-----`).
+    pub fn from_pkcs8_pem(pem: &str) -> Result<Self> {
+        let key = ed25519_dalek::SigningKey::from_pkcs8_pem(pem)
+            .map_err(|error| Error::key(format!("invalid PKCS#8 PEM Ed25519 key: {error}")))?;
+        Ok(Self::Ed25519(key))
     }
 }
 
@@ -315,4 +354,43 @@ pub fn calculate_jwk_thumbprint_sha512(jwk: &Jwk) -> Result<String> {
 
 pub fn generate_jwks(keys: &[Jwk]) -> Value {
     serde_json::json!({ "keys": keys })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ed25519_pkcs8_der_round_trip_signs_and_verifies() {
+        let (key, public) = generate_ed25519_keypair();
+        let der = key.to_pkcs8_der().expect("encode");
+        let restored = PrivateKey::from_pkcs8_der(&der).expect("decode");
+
+        let message = b"round trip";
+        let signature = restored.sign(message);
+        public.verify(&signature, message).expect("verify");
+        assert_eq!(restored.public_key(), public);
+    }
+
+    #[test]
+    fn ed25519_pkcs8_pem_round_trip_signs_and_verifies() {
+        let (key, public) = generate_ed25519_keypair();
+        let PrivateKey::Ed25519(signing_key) = &key else {
+            unreachable!("generate_ed25519_keypair always returns Ed25519")
+        };
+        let pem = signing_key
+            .to_pkcs8_pem(Default::default())
+            .expect("pem encode");
+
+        let restored = PrivateKey::from_pkcs8_pem(&pem).expect("decode pem");
+        let message = b"pem round trip";
+        let signature = restored.sign(message);
+        public.verify(&signature, message).expect("verify");
+    }
+
+    #[test]
+    fn ecdsa_pkcs8_export_is_unimplemented() {
+        let (key, _) = generate_p256_keypair();
+        assert!(key.to_pkcs8_der().is_err());
+    }
 }
