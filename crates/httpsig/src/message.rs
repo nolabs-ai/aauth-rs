@@ -257,6 +257,19 @@ impl UnverifiedSignature {
 /// external key material.
 ///
 /// If `label` is omitted, `Signature-Input` must contain exactly one member.
+///
+/// When `content-digest` is a covered component, this also recomputes the
+/// SHA-256 digest of `request.body` and checks it against the claimed
+/// `Content-Digest` header value. Signing "covers" a header's *text*, not
+/// the body itself — a party sitting between signer and verifier could
+/// otherwise swap the body while leaving a stale (but still
+/// correctly-signed) `Content-Digest` header in place, and the
+/// cryptographic signature check alone would never notice, since it only
+/// verifies the signature base string, which is built from the header's
+/// literal value rather than a live digest of `request.body`. RFC 9530
+/// requires exactly this comparison of anyone consuming `Content-Digest`
+/// for integrity, so it happens here rather than being left to every caller
+/// to remember.
 pub fn prepare_verification(
     request: &RequestParts<'_>,
     signature_input_header: &str,
@@ -276,6 +289,24 @@ pub fn prepare_verification(
     let signature = signature_for_label(signature_header, &input.label)?;
     let signature_base =
         build_signature_base(request, &input.components, &input.serialized_params)?;
+
+    if input
+        .components
+        .iter()
+        .any(|c| c.eq_ignore_ascii_case("content-digest"))
+    {
+        let claimed = request
+            .header("content-digest")
+            .ok_or_else(|| Error::InvalidComponent {
+                component: "content-digest".to_string(),
+                message: "covered header field is absent".to_string(),
+            })?;
+        let actual = calculate_content_digest(request.body.unwrap_or(&[]));
+        if claimed != actual {
+            return Err(Error::VerificationFailed);
+        }
+    }
+
     Ok(UnverifiedSignature {
         input,
         signature_key,
