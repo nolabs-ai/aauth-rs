@@ -1,6 +1,6 @@
 [package]
 name = "aauth-httpsig-policy"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.86"
 description = "Independent, fail-closed verification policy for HTTP Message Signatures"
@@ -13,5 +13,5 @@ categories = ["authentication", "web-programming"]
 name = "httpsig_policy"
 
 [dependencies]
-httpsig = { package = "aauth-httpsig", version = "0.1.0", path = "../httpsig" }
+httpsig = { package = "aauth-httpsig", version = "0.1.2", path = "../httpsig" }
 thiserror = "2"
