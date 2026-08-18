@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "aauth-core"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.86"
 description = "Rust implementation of the AAuth protocol — authentication and authorization for autonomous agents, built on HTTP Message Signatures (RFC 9421) and JWT-based proof-of-possession tokens."
@@ -16,8 +16,8 @@ categories = ["authentication", "web-programming"]
 [dependencies]
 base64 = "0.23"
 getrandom = { version = "0.4", features = ["sys_rng"] }
-httpsig = { package = "aauth-httpsig", version = "0.1.0", path = "crates/httpsig" }
-httpsig-policy = { package = "aauth-httpsig-policy", version = "0.1.0", path = "crates/httpsig-policy" }
+httpsig = { package = "aauth-httpsig", version = "0.1.2", path = "crates/httpsig" }
+httpsig-policy = { package = "aauth-httpsig-policy", version = "0.1.2", path = "crates/httpsig-policy" }
 rand_core = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
